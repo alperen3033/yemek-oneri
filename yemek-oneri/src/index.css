@@ -1,0 +1,44 @@
+:root {
+  --bg: #fff7ed;          /* sıcak krem */
+  --surface: #ffffff;
+  --surface2: #fff1e6;    /* hafif şeftali */
+  --text: #1f2937;        /* koyu gri */
+  --muted: #6b7280;
+
+  --brand: #ef4444;       /* domates */
+  --brand2: #f59e0b;      /* baharat */
+  --green: #16a34a;       /* fesleğen */
+  --border: rgba(31, 41, 55, 0.12);
+
+  --shadow: 0 14px 40px rgba(17, 24, 39, 0.10);
+  --shadow2: 0 10px 30px rgba(17, 24, 39, 0.08);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  color: var(--text);
+  background:
+    radial-gradient(800px 500px at 10% 10%, rgba(239, 68, 68, 0.14), transparent 60%),
+    radial-gradient(800px 500px at 90% 15%, rgba(245, 158, 11, 0.16), transparent 60%),
+    radial-gradient(900px 600px at 60% 100%, rgba(22, 163, 74, 0.10), transparent 55%),
+    var(--bg);
+}
+
+/* Hafif mutfak dokusu (çok az belli olsun) */
+body::before{
+  content:"";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image:
+    linear-gradient(0deg, rgba(31,41,55,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31,41,55,0.06) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mix-blend-mode: multiply;
+}
+
+
