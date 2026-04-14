@@ -1,32 +1,82 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
-
 
 import IngredientInput from "./components/IngredientInput";
 import IngredientChips from "./components/IngredientChips";
 import RecipeList from "./components/RecipeList";
 import RecipeModal from "./components/RecipeModal";
+import LoginForm from "./components/LoginForm";
+
+import { suggestRecipes } from "./services/recipeApi";
+import { loginUser, fetchMe } from "./api/authApi";
 
 function normalizeToken(s) {
   return s.trim().toLowerCase();
 }
 
 export default function App() {
+  // auth
+  const [token, setToken] = useState(localStorage.getItem("accessToken") || "");
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+
   // input + ingredient list
   const [ingredientsText, setIngredientsText] = useState("");
   const [ingredients, setIngredients] = useState([]);
   const [lastAdded, setLastAdded] = useState(null);
 
-  // demo flow
+  // recipes
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const [displayedRecipes, setDisplayedRecipes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
   // modal
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
-  // scroll target
-  const resultsRef = useRef(null);
+  useEffect(() => {
+    async function loadUser() {
+      if (!token) return;
+
+      try {
+        const user = await fetchMe(token);
+        setCurrentUser(user);
+      } catch (error) {
+        console.error("fetchMe error:", error);
+        localStorage.removeItem("accessToken");
+        setToken("");
+        setCurrentUser(null);
+      }
+    }
+
+    loadUser();
+  }, [token]);
+
+  const handleLogin = async (username, password) => {
+    setAuthLoading(true);
+    setAuthError("");
+
+    try {
+      const data = await loginUser(username, password);
+      localStorage.setItem("accessToken", data.access);
+      setToken(data.access);
+
+      const user = await fetchMe(data.access);
+      setCurrentUser(user);
+    } catch (error) {
+      console.error("login error:", error);
+      setAuthError(error.message || "Giriş başarısız");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("accessToken");
+    setToken("");
+    setCurrentUser(null);
+  };
 
   const addMany = (raw) => {
     const tokens = raw
@@ -42,7 +92,6 @@ export default function App() {
       return Array.from(set);
     });
 
-    // chip pop animation (last token)
     const last = tokens[tokens.length - 1];
     setLastAdded(last);
     window.setTimeout(() => setLastAdded(null), 200);
@@ -64,33 +113,27 @@ export default function App() {
     }
   };
 
-  // compute best 3 (not shown immediately)
-
   const handleSuggest = async () => {
-    setHasSearched(true);
     setSelectedRecipe(null);
+    setError("");
 
     if (ingredients.length === 0) {
+      setHasSearched(false);
       setDisplayedRecipes([]);
+      setError("Öneri almak için önce en az bir malzeme ekleyin.");
       return;
     }
 
+    setHasSearched(true);
     setIsLoading(true);
     setDisplayedRecipes([]);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/recipes/suggest/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ingredients }),
-      });
-
-      const data = await res.json();
-      setDisplayedRecipes(data.recipes);
+      const recipes = await suggestRecipes(ingredients);
+      setDisplayedRecipes(recipes);
     } catch (error) {
       console.error("API error:", error);
+      setError(error.message || "Tarifler alınırken bir hata oluştu.");
     } finally {
       setIsLoading(false);
     }
@@ -103,12 +146,36 @@ export default function App() {
     setHasSearched(false);
     setSelectedRecipe(null);
     setIsLoading(false);
+    setError("");
   };
+
+  if (!currentUser) {
+    return (
+      <div className="page">
+        <div className="container">
+          <div className="topbar">
+            <div className="brand">
+              <div className="logo">🍳</div>
+              <div className="brandName">
+                <b>Ne Pişirsem</b>
+                <span>Önce giriş yap, sonra mutfağa dal</span>
+              </div>
+            </div>
+          </div>
+
+          <LoginForm
+            onLogin={handleLogin}
+            isLoading={authLoading}
+            error={authError}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
       <div className="container">
-        {/* TOPBAR */}
         <div className="topbar">
           <div className="brand">
             <div className="logo">🍳</div>
@@ -117,10 +184,15 @@ export default function App() {
               <span>Malzeme → 3 öneri → tarif</span>
             </div>
           </div>
-          <div className="pill">🍅 Sunum modu • v0.1</div>
+
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="pill">🍅 {currentUser.username} • giriş yaptı</div>
+            <button className="btn" onClick={handleLogout}>
+              Çıkış Yap
+            </button>
+          </div>
         </div>
 
-        {/* HERO */}
         <div className="hero">
           <h1 className="heroTitle">Ne Pişirsem?</h1>
           <p className="heroSub">
@@ -129,7 +201,6 @@ export default function App() {
         </div>
 
         <div className="grid">
-          {/* LEFT */}
           <div className="card">
             <h2 className="sectionTitle">
               Malzemeler <span className="tag">hazırla</span>
@@ -150,7 +221,7 @@ export default function App() {
             />
 
             <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btnPrimary" onClick={handleSuggest}>
+              <button className="btn btnPrimary" onClick={handleSuggest} disabled={isLoading}>
                 Öner
               </button>
               <button className="btn" onClick={handleClearAll}>
@@ -159,8 +230,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* RIGHT */}
-          <div className="card" ref={resultsRef}>
+          <div className="card">
             <h2 className="sectionTitle">
               Öneriler <span className="tag">3 tarif</span>
             </h2>
@@ -172,6 +242,8 @@ export default function App() {
                   Tarifler karıştırılıyor<span className="dots"></span>
                 </div>
               </div>
+            ) : error ? (
+              <p className="hint">{error}</p>
             ) : !hasSearched ? (
               <p className="hint">
                 Malzemeleri ekle, <b>Öner</b>’e basınca kartlar burada çıkacak.
@@ -182,7 +254,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* MODAL */}
         <RecipeModal
           recipe={selectedRecipe}
           onClose={() => setSelectedRecipe(null)}
