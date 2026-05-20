@@ -1,11 +1,4 @@
-export default function RecipeModal({
-  recipe,
-  onClose,
-  userIngredients,
-  onAddFavorite,
-  favoriteLoading,
-  favoriteMessage,
-}) {
+export default function RecipeModal({ recipe, onClose, userIngredients }) {
   if (!recipe) return null;
 
   const have = recipe.ingredients.filter((x) => userIngredients.includes(x));
@@ -14,6 +7,7 @@ export default function RecipeModal({
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalPanel fadeIn" onClick={(e) => e.stopPropagation()}>
+        {/* HEADER */}
         <div className="modalHeader">
           <div>
             <div className="modalTitle">{recipe.title}</div>
@@ -27,22 +21,12 @@ export default function RecipeModal({
           </button>
         </div>
 
+        {/* IMAGE */}
         {recipe.image ? (
           <img className="modalImage" src={recipe.image} alt={recipe.title} />
         ) : null}
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14 }}>
-          <button
-            className="btn btnPrimary"
-            onClick={() => onAddFavorite(recipe)}
-            disabled={favoriteLoading}
-          >
-            {favoriteLoading ? "Ekleniyor..." : "❤️ Favoriye Ekle"}
-          </button>
-
-          {favoriteMessage ? <span className="hint">{favoriteMessage}</span> : null}
-        </div>
-
+        {/* CONTENT */}
         <div className="modalBody">
           <div>
             <div style={{ fontWeight: 800, marginBottom: 8 }}>Sende olanlar</div>

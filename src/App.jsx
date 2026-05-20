@@ -9,30 +9,38 @@ import LoginForm from "./components/LoginForm";
 
 import { suggestRecipes } from "./services/recipeApi";
 import { loginUser, fetchMe } from "./api/authApi";
+import {
+  addFavoriteRecipe,
+  getFavoriteRecipes,
+} from "./api/favoriteApi";
 
 function normalizeToken(s) {
   return s.trim().toLowerCase();
 }
 
 export default function App() {
-  // auth
   const [token, setToken] = useState(localStorage.getItem("accessToken") || "");
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // input + ingredient list
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [favoriteMessage, setFavoriteMessage] = useState("");
+
+  const [favorites, setFavorites] = useState([]);
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [favoritesError, setFavoritesError] = useState("");
+
   const [ingredientsText, setIngredientsText] = useState("");
   const [ingredients, setIngredients] = useState([]);
   const [lastAdded, setLastAdded] = useState(null);
 
-  // recipes
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [displayedRecipes, setDisplayedRecipes] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // modal
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
   useEffect(() => {
@@ -76,6 +84,10 @@ export default function App() {
     localStorage.removeItem("accessToken");
     setToken("");
     setCurrentUser(null);
+    setSelectedRecipe(null);
+    setFavoriteMessage("");
+    setFavorites([]);
+    setShowFavorites(false);
   };
 
   const addMany = (raw) => {
@@ -115,7 +127,9 @@ export default function App() {
 
   const handleSuggest = async () => {
     setSelectedRecipe(null);
+    setFavoriteMessage("");
     setError("");
+    setShowFavorites(false);
 
     if (ingredients.length === 0) {
       setHasSearched(false);
@@ -139,6 +153,42 @@ export default function App() {
     }
   };
 
+  const handleAddFavorite = async (recipe) => {
+    setFavoriteLoading(true);
+    setFavoriteMessage("");
+
+    try {
+      await addFavoriteRecipe(recipe, token);
+      setFavoriteMessage("Favorilere eklendi ✅");
+    } catch (error) {
+      console.error("favorite error:", error);
+      setFavoriteMessage(error.message || "Favoriye eklenemedi.");
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
+  const handleShowFavorites = async () => {
+    setShowFavorites(true);
+    setFavoritesLoading(true);
+    setFavoritesError("");
+    setSelectedRecipe(null);
+
+    try {
+      const data = await getFavoriteRecipes(token);
+      setFavorites(data);
+    } catch (error) {
+      console.error("favorites error:", error);
+      setFavoritesError(error.message || "Favoriler alınamadı.");
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  const handleBackToSuggestions = () => {
+    setShowFavorites(false);
+  };
+
   const handleClearAll = () => {
     setIngredients([]);
     setIngredientsText("");
@@ -147,6 +197,8 @@ export default function App() {
     setSelectedRecipe(null);
     setIsLoading(false);
     setError("");
+    setFavoriteMessage("");
+    setShowFavorites(false);
   };
 
   if (!currentUser) {
@@ -185,8 +237,20 @@ export default function App() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             <div className="pill">🍅 {currentUser.username} • giriş yaptı</div>
+
+            <button className="btn" onClick={handleShowFavorites}>
+              Favorilerim
+            </button>
+
             <button className="btn" onClick={handleLogout}>
               Çıkış Yap
             </button>
@@ -200,64 +264,161 @@ export default function App() {
           </p>
         </div>
 
-        <div className="grid">
+        {showFavorites ? (
           <div className="card">
-            <h2 className="sectionTitle">
-              Malzemeler <span className="tag">hazırla</span>
-            </h2>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <h2 className="sectionTitle">
+                Favorilerim{" "}
+                <span className="tag">{favorites.length} tarif</span>
+              </h2>
 
-            <IngredientInput
-              value={ingredientsText}
-              onChange={setIngredientsText}
-              onAdd={addFromInput}
-              onClear={handleClearAll}
-              onKeyDown={onKeyDown}
-            />
-
-            <IngredientChips
-              items={ingredients}
-              onRemove={removeIngredient}
-              lastAdded={lastAdded}
-            />
-
-            <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="btn btnPrimary" onClick={handleSuggest} disabled={isLoading}>
-                Öner
-              </button>
-              <button className="btn" onClick={handleClearAll}>
-                Baştan
+              <button
+                className="btn"
+                onClick={handleBackToSuggestions}
+              >
+                Önerilere Dön
               </button>
             </div>
-          </div>
 
-          <div className="card">
-            <h2 className="sectionTitle">
-              Öneriler <span className="tag">3 tarif</span>
-            </h2>
-
-            {isLoading ? (
-              <div className="loaderWrap fadeIn">
-                <div className="spinner" />
-                <div className="typeLine">
-                  Tarifler karıştırılıyor<span className="dots"></span>
-                </div>
-              </div>
-            ) : error ? (
-              <p className="hint">{error}</p>
-            ) : !hasSearched ? (
-              <p className="hint">
-                Malzemeleri ekle, <b>Öner</b>’e basınca kartlar burada çıkacak.
-              </p>
+            {favoritesLoading ? (
+              <p className="hint">Favoriler yükleniyor...</p>
+            ) : favoritesError ? (
+              <p className="hint">{favoritesError}</p>
+            ) : favorites.length === 0 ? (
+              <p className="hint">Henüz favori tarif yok.</p>
             ) : (
-              <RecipeList recipes={displayedRecipes} onSelect={setSelectedRecipe} />
+              <div className="cards">
+                {favorites.map((favorite) => (
+                  <button
+                    key={favorite.id}
+                    onClick={() => {
+                      setSelectedRecipe(favorite.recipe_data);
+                      setFavoriteMessage("");
+                    }}
+                    style={{
+                      padding: 0,
+                      border: "none",
+                      background: "transparent",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      width: "100%",
+                    }}
+                  >
+                    <div className="recipe">
+                      <div className="recipeBody">
+                        <h3 className="recipeName">
+                          {favorite.recipe_title}
+                        </h3>
+
+                        <p className="meta">
+                          {favorite.recipe_data?.time} dk •{" "}
+                          {favorite.recipe_data?.difficulty}
+                        </p>
+
+                        <p className="meta">
+                          Kaynak: {favorite.source}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
-        </div>
+        ) : (
+          <div className="grid">
+            <div className="card">
+              <h2 className="sectionTitle">
+                Malzemeler <span className="tag">hazırla</span>
+              </h2>
+
+              <IngredientInput
+                value={ingredientsText}
+                onChange={setIngredientsText}
+                onAdd={addFromInput}
+                onClear={handleClearAll}
+                onKeyDown={onKeyDown}
+              />
+
+              <IngredientChips
+                items={ingredients}
+                onRemove={removeIngredient}
+                lastAdded={lastAdded}
+              />
+
+              <div
+                style={{
+                  marginTop: 14,
+                  display: "flex",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
+                <button
+                  className="btn btnPrimary"
+                  onClick={handleSuggest}
+                  disabled={isLoading}
+                >
+                  Öner
+                </button>
+
+                <button
+                  className="btn"
+                  onClick={handleClearAll}
+                >
+                  Baştan
+                </button>
+              </div>
+            </div>
+
+            <div className="card">
+              <h2 className="sectionTitle">
+                Öneriler <span className="tag">3 tarif</span>
+              </h2>
+
+              {isLoading ? (
+                <div className="loaderWrap fadeIn">
+                  <div className="spinner" />
+                  <div className="typeLine">
+                    Tarifler karıştırılıyor
+                    <span className="dots"></span>
+                  </div>
+                </div>
+              ) : error ? (
+                <p className="hint">{error}</p>
+              ) : !hasSearched ? (
+                <p className="hint">
+                  Malzemeleri ekle, <b>Öner</b>’e basınca kartlar burada
+                  çıkacak.
+                </p>
+              ) : (
+                <RecipeList
+                  recipes={displayedRecipes}
+                  onSelect={setSelectedRecipe}
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         <RecipeModal
           recipe={selectedRecipe}
-          onClose={() => setSelectedRecipe(null)}
+          onClose={() => {
+            setSelectedRecipe(null);
+            setFavoriteMessage("");
+          }}
           userIngredients={ingredients}
+          onAddFavorite={handleAddFavorite}
+          favoriteLoading={favoriteLoading}
+          favoriteMessage={favoriteMessage}
         />
       </div>
     </div>
