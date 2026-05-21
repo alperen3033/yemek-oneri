@@ -12,6 +12,7 @@ import { loginUser, fetchMe } from "./api/authApi";
 import {
   addFavoriteRecipe,
   getFavoriteRecipes,
+  deleteFavoriteRecipe,
 } from "./api/favoriteApi";
 
 function normalizeToken(s) {
@@ -31,6 +32,7 @@ export default function App() {
   const [showFavorites, setShowFavorites] = useState(false);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
   const [favoritesError, setFavoritesError] = useState("");
+  const [deletingFavoriteId, setDeletingFavoriteId] = useState(null);
 
   const [ingredientsText, setIngredientsText] = useState("");
   const [ingredients, setIngredients] = useState([]);
@@ -160,6 +162,11 @@ export default function App() {
     try {
       await addFavoriteRecipe(recipe, token);
       setFavoriteMessage("Favorilere eklendi ✅");
+
+      if (showFavorites) {
+        const data = await getFavoriteRecipes(token);
+        setFavorites(data);
+      }
     } catch (error) {
       console.error("favorite error:", error);
       setFavoriteMessage(error.message || "Favoriye eklenemedi.");
@@ -182,6 +189,21 @@ export default function App() {
       setFavoritesError(error.message || "Favoriler alınamadı.");
     } finally {
       setFavoritesLoading(false);
+    }
+  };
+
+  const handleDeleteFavorite = async (favoriteId) => {
+    setDeletingFavoriteId(favoriteId);
+    setFavoritesError("");
+
+    try {
+      await deleteFavoriteRecipe(favoriteId, token);
+      setFavorites((prev) => prev.filter((favorite) => favorite.id !== favoriteId));
+    } catch (error) {
+      console.error("delete favorite error:", error);
+      setFavoritesError(error.message || "Favoriden çıkarılamadı.");
+    } finally {
+      setDeletingFavoriteId(null);
     }
   };
 
@@ -280,10 +302,7 @@ export default function App() {
                 <span className="tag">{favorites.length} tarif</span>
               </h2>
 
-              <button
-                className="btn"
-                onClick={handleBackToSuggestions}
-              >
+              <button className="btn" onClick={handleBackToSuggestions}>
                 Önerilere Dön
               </button>
             </div>
@@ -297,38 +316,45 @@ export default function App() {
             ) : (
               <div className="cards">
                 {favorites.map((favorite) => (
-                  <button
-                    key={favorite.id}
-                    onClick={() => {
-                      setSelectedRecipe(favorite.recipe_data);
-                      setFavoriteMessage("");
-                    }}
-                    style={{
-                      padding: 0,
-                      border: "none",
-                      background: "transparent",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
-                  >
-                    <div className="recipe">
+                  <div className="recipe" key={favorite.id}>
+                    <button
+                      onClick={() => {
+                        setSelectedRecipe(favorite.recipe_data);
+                        setFavoriteMessage("");
+                      }}
+                      style={{
+                        padding: 0,
+                        border: "none",
+                        background: "transparent",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        width: "100%",
+                      }}
+                    >
                       <div className="recipeBody">
-                        <h3 className="recipeName">
-                          {favorite.recipe_title}
-                        </h3>
+                        <h3 className="recipeName">{favorite.recipe_title}</h3>
 
                         <p className="meta">
                           {favorite.recipe_data?.time} dk •{" "}
                           {favorite.recipe_data?.difficulty}
                         </p>
 
-                        <p className="meta">
-                          Kaynak: {favorite.source}
-                        </p>
+                        <p className="meta">Kaynak: {favorite.source}</p>
                       </div>
+                    </button>
+
+                    <div style={{ padding: "0 16px 16px" }}>
+                      <button
+                        className="btn"
+                        onClick={() => handleDeleteFavorite(favorite.id)}
+                        disabled={deletingFavoriteId === favorite.id}
+                      >
+                        {deletingFavoriteId === favorite.id
+                          ? "Çıkarılıyor..."
+                          : "Favoriden Çıkar"}
+                      </button>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -370,10 +396,7 @@ export default function App() {
                   Öner
                 </button>
 
-                <button
-                  className="btn"
-                  onClick={handleClearAll}
-                >
+                <button className="btn" onClick={handleClearAll}>
                   Baştan
                 </button>
               </div>

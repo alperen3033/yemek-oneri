@@ -43,3 +43,27 @@ export async function getFavoriteRecipes(token) {
 
   return data;
 }
+
+export async function deleteFavoriteRecipe(favoriteId, token) {
+  const response = await fetch(`${API_BASE_URL}/api/favorites/${favoriteId}/`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let message = "Favoriden çıkarılamadı.";
+
+    try {
+      const data = await response.json();
+      message = data.detail || message;
+    } catch {
+      // DELETE 204 response has no body
+    }
+
+    throw new Error(message);
+  }
+
+  return true;
+}
